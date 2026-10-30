@@ -1,0 +1,2315 @@
+<title>ConnectPlus CI</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap">
+
+<style>
+/* === DESIGN TOKENS — ConnectPlus CI === */
+/* Layout: mobile-first, sticky header + tab nav, scrollable content per tab */
+:root {
+  /* Brand palette */
+  --orange: #FF6B00;
+  --orange-light: #FF8C2F;
+  --orange-pale: rgba(255,107,0,0.12);
+  --green: #00A651;
+  --green-pale: rgba(0,166,81,0.12);
+  --yellow: #FFB800;
+  --red: #E53935;
+  --red-pale: rgba(229,57,53,0.12);
+  --blue: #1565C0;
+
+  /* Light theme surfaces */
+  --bg: #F5F6FA;
+  --surface: #FFFFFF;
+  --surface2: #EEF0F6;
+  --border: #DDE1EC;
+  --fg: #1A1D2E;
+  --fg2: #5A6080;
+  --fg3: #9198B8;
+
+  /* Accent */
+  --accent: var(--orange);
+  --accent-light: var(--orange-light);
+  --accent-pale: var(--orange-pale);
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111320;
+    --surface: #1C1F35;
+    --surface2: #252843;
+    --border: #2E3358;
+    --fg: #EDEEFF;
+    --fg2: #9198B8;
+    --fg3: #5A6080;
+    --shadow: 0 2px 8px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111320;
+  --surface: #1C1F35;
+  --surface2: #252843;
+  --border: #2E3358;
+  --fg: #EDEEFF;
+  --fg2: #9198B8;
+  --fg3: #5A6080;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 15px;
+  background: var(--bg);
+  color: var(--fg);
+  overflow: hidden;
+}
+
+/* === LAYOUT === */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Header */
+#header {
+  background: var(--orange);
+  padding: env(safe-area-inset-top, 0px) 16px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 200;
+  background: var(--orange);
+}
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+.brand {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.brand span { opacity: 0.75; font-weight: 600; font-size: 13px; display: block; }
+
+.header-actions { display: flex; gap: 8px; align-items: center; }
+.btn-icon {
+  background: rgba(255,255,255,0.2);
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background .15s;
+}
+.btn-icon:active { background: rgba(255,255,255,0.35); }
+
+/* Tab nav */
+#tab-nav {
+  background: var(--orange);
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 0 4px 8px;
+  gap: 4px;
+}
+#tab-nav::-webkit-scrollbar { display: none; }
+.tab-btn {
+  border: none;
+  background: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.8);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.tab-btn.active {
+  background: #fff;
+  color: var(--orange);
+  font-weight: 600;
+}
+
+/* Scrollable content */
+#content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px max(16px, env(safe-area-inset-right, 0px)) 100px max(16px, env(safe-area-inset-left, 0px));
+}
+
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* === COMPONENTS === */
+
+/* Section header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  margin-top: 20px;
+}
+.section-header:first-child { margin-top: 4px; }
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  color: var(--fg2);
+}
+
+/* KPI tiles */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.kpi-tile {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+}
+.kpi-label { font-size: 11px; color: var(--fg2); font-weight: 500; margin-bottom: 4px; text-transform: uppercase; letter-spacing: .4px; }
+.kpi-value { font-size: 22px; font-weight: 700; color: var(--fg); font-variant-numeric: tabular-nums; line-height: 1; }
+.kpi-sub { font-size: 11px; color: var(--fg3); margin-top: 3px; }
+.kpi-tile.accent { background: var(--orange); }
+.kpi-tile.accent .kpi-label { color: rgba(255,255,255,0.7); }
+.kpi-tile.accent .kpi-value { color: #fff; }
+.kpi-tile.accent .kpi-sub { color: rgba(255,255,255,0.65); }
+.kpi-tile.green { background: var(--green); }
+.kpi-tile.green .kpi-label { color: rgba(255,255,255,0.7); }
+.kpi-tile.green .kpi-value { color: #fff; }
+.kpi-tile.green .kpi-sub { color: rgba(255,255,255,0.65); }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.card-head {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-body { padding: 12px 14px; }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 20px;
+  padding: 3px 10px;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.badge-green { background: var(--green-pale); color: var(--green); }
+.badge-red { background: var(--red-pale); color: var(--red); }
+.badge-orange { background: var(--accent-pale); color: var(--orange); }
+.badge-yellow { background: rgba(255,184,0,.15); color: var(--yellow); }
+
+/* Client row */
+.client-item {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+  position: relative;
+  border-left: 3px solid var(--border);
+}
+.client-item.paid { border-left-color: var(--green); }
+.client-item.unpaid { border-left-color: var(--red); }
+.client-item.alert { border-left-color: var(--yellow); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{box-shadow:var(--shadow)} 50%{box-shadow:0 0 0 3px rgba(229,57,53,.2)} }
+
+.client-name { font-weight: 600; font-size: 14px; color: var(--fg); }
+.client-id { font-size: 11px; color: var(--fg3); }
+.client-row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+.client-amounts { display: flex; gap: 16px; }
+.amount-block { }
+.amount-label { font-size: 10px; color: var(--fg3); text-transform: uppercase; letter-spacing: .3px; }
+.amount-val { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
+.amount-val.red { color: var(--red); }
+.amount-val.green { color: var(--green); }
+.client-actions { display: flex; gap: 6px; }
+
+/* Buttons */
+.btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity .15s, transform .1s;
+}
+.btn:active { opacity: .8; transform: scale(.97); }
+.btn-primary { background: var(--orange); color: #fff; }
+.btn-success { background: var(--green); color: #fff; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-ghost { background: var(--surface2); color: var(--fg); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+
+/* FAB */
+.fab {
+  position: fixed;
+  bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+  right: max(16px, env(safe-area-inset-right, 0px));
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: var(--orange);
+  color: #fff;
+  font-size: 24px;
+  border: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  transition: transform .15s;
+}
+.fab:active { transform: scale(.92); }
+
+/* Forms */
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 12px; font-weight: 600; color: var(--fg2); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: .4px; }
+.form-control {
+  width: 100%;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 13px;
+  font-size: 14px;
+  color: var(--fg);
+  font-family: inherit;
+  transition: border-color .15s;
+}
+.form-control:focus { outline: none; border-color: var(--orange); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Modal overlay */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 300;
+  align-items: flex-end;
+  padding: 0;
+}
+.modal-overlay.open { display: flex; }
+.modal-sheet {
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 20px max(16px, env(safe-area-inset-right, 0px)) calc(20px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-handle {
+  width: 36px; height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 16px;
+}
+.modal-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; }
+
+/* Progress bar */
+.progress-bar { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; border-radius: 4px; background: var(--green); transition: width .3s; }
+
+/* Operator bar */
+.op-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.op-row:last-child { border-bottom: none; }
+.op-name { display: flex; align-items: center; gap: 8px; font-weight: 500; font-size: 13px; }
+.op-dot { width: 10px; height: 10px; border-radius: 50%; }
+.op-dot.orange { background: #FF6B00; }
+.op-dot.yellow { background: #FFB800; }
+.op-dot.blue { background: #00A0DC; }
+.op-dot.teal { background: #00BCD4; }
+.op-dot.purple { background: #9C27B0; }
+.op-amounts { text-align: right; }
+.op-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.op-diff { font-size: 11px; color: var(--fg3); }
+
+/* Suivi journal row */
+.journal-day {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.journal-day-header {
+  padding: 10px 14px;
+  background: var(--surface2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+.journal-day-header .date { font-weight: 600; font-size: 13px; }
+.journal-day-header .total { font-size: 13px; font-weight: 700; color: var(--orange); font-variant-numeric: tabular-nums; }
+.journal-day-body { padding: 10px 14px; display: none; }
+.journal-day.open .journal-day-body { display: block; }
+
+/* Purchase / commission rows */
+.list-item {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.list-item-left .item-title { font-weight: 600; font-size: 14px; }
+.list-item-left .item-sub { font-size: 11px; color: var(--fg3); margin-top: 2px; }
+.list-item-right { text-align: right; }
+.item-amount { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg); }
+.item-badge { margin-top: 2px; }
+
+/* Autocomplete contacts */
+.autocomplete-list {
+  position: absolute; left: 0; right: 0; top: 100%;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+  z-index: 1000; max-height: 180px; overflow-y: auto;
+}
+.autocomplete-item {
+  padding: 10px 14px; cursor: pointer; font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.autocomplete-item:last-child { border-bottom: none; }
+.autocomplete-item:hover, .autocomplete-item:active { background: var(--surface2); }
+
+/* Alert banner */
+.alert-banner {
+  background: var(--red-pale);
+  border: 1.5px solid rgba(229,57,53,.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.alert-banner .alert-icon { font-size: 18px; flex-shrink: 0; }
+.alert-banner .alert-text { font-size: 12.5px; color: var(--red); line-height: 1.4; }
+
+/* Donut chart */
+.donut-wrap { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
+.donut-wrap svg { transform: rotate(-90deg); }
+.donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.donut-center .d-val { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.donut-center .d-lbl { font-size: 10px; color: var(--fg3); }
+
+/* Search */
+.search-box {
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  box-shadow: var(--shadow);
+  margin-bottom: 12px;
+  border: 1.5px solid var(--border);
+}
+.search-box input {
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: var(--fg);
+  font-family: inherit;
+  flex: 1;
+}
+.search-box input::placeholder { color: var(--fg3); }
+.search-box input:focus { outline: none; }
+.search-icon { font-size: 16px; color: var(--fg3); }
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--fg3);
+}
+.empty-state .empty-icon { font-size: 40px; margin-bottom: 10px; }
+.empty-state p { font-size: 13px; line-height: 1.6; }
+
+/* Toast */
+#toast {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--fg);
+  color: var(--bg);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  z-index: 500;
+  opacity: 0;
+  transition: opacity .25s, transform .25s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* Bottom bar for wider screens */
+@media (min-width: 481px) {
+  #app { box-shadow: var(--shadow-md); }
+}
+
+.divider { height: 1px; background: var(--border); margin: 12px 0; }
+
+/* Delete btn in list items */
+.btn-del {
+  border: none;
+  background: none;
+  color: var(--fg3);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+.btn-del:active { color: var(--red); }
+
+select.form-control { cursor: pointer; }
+</style>
+
+<!-- APP HTML -->
+<div id="app">
+  <!-- Header -->
+  <div id="header">
+    <div class="header-inner">
+      <div class="brand">
+        ConnectPlus CI
+        <span>Gestion UV & Crédit</span>
+      </div>
+      <div class="header-actions">
+        <button class="btn-icon" onclick="exportData()" title="Exporter">💾</button>
+        <button class="btn-icon" onclick="toggleTheme()" id="theme-btn" title="Thème">🌙</button>
+      </div>
+    </div>
+    <div id="tab-nav">
+      <button class="tab-btn active" onclick="switchTab('dashboard')">📊 Tableau</button>
+      <button class="tab-btn" onclick="switchTab('credits')">👥 Crédits</button>
+      <button class="tab-btn" onclick="switchTab('suivi')">📈 Suivi Stock</button>
+      <button class="tab-btn" onclick="switchTab('achats')">🛒 Achats UV</button>
+      <button class="tab-btn" onclick="switchTab('commissions')">💰 Commissions</button>
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- ====== TAB: TABLEAU DE BORD ====== -->
+    <div class="tab-pane active" id="tab-dashboard">
+      <div class="section-header">
+        <span class="section-title">Résumé</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('dashboard',-1)">‹</button>
+          <span style="font-size:12px;color:var(--fg2);font-weight:600;min-width:90px;text-align:center;" id="dash-month"></span>
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('dashboard',1)">›</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-tile accent">
+          <div class="kpi-label">Total accordé</div>
+          <div class="kpi-value" id="kpi-total-credit">0 F</div>
+          <div class="kpi-sub" id="kpi-nb-clients">0 clients</div>
+        </div>
+        <div class="kpi-tile green">
+          <div class="kpi-label">Encaissé</div>
+          <div class="kpi-value" id="kpi-encaisse">0 F</div>
+          <div class="kpi-sub" id="kpi-nb-payes">0 payés</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Reste dû</div>
+          <div class="kpi-value red" id="kpi-restant">0 F</div>
+          <div class="kpi-sub" id="kpi-nb-impaye">0 non payés</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Achats UV</div>
+          <div class="kpi-value" id="kpi-achats">0 F</div>
+          <div class="kpi-sub" id="kpi-achats-sub">–</div>
+        </div>
+      </div>
+
+      <!-- Alertes relance -->
+      <div id="dash-alerts"></div>
+
+      <!-- Répartition achats -->
+      <div class="section-header" style="margin-top:8px;">
+        <span class="section-title">Achats par opérateur</span>
+      </div>
+      <div class="card">
+        <div class="card-body" style="display:flex;gap:16px;align-items:center;">
+          <div class="donut-wrap">
+            <svg width="120" height="120" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="46" fill="none" stroke="var(--surface2)" stroke-width="14"/>
+              <circle id="donut-orange" cx="60" cy="60" r="46" fill="none" stroke="#FF6B00" stroke-width="14" stroke-dasharray="0 289"/>
+              <circle id="donut-moov" cx="60" cy="60" r="46" fill="none" stroke="#FFB800" stroke-width="14" stroke-dasharray="0 289"/>
+              <circle id="donut-mtn" cx="60" cy="60" r="46" fill="none" stroke="#00A0DC" stroke-width="14" stroke-dasharray="0 289"/>
+            </svg>
+            <div class="donut-center">
+              <div class="d-val" id="donut-total">0</div>
+              <div class="d-lbl">Total F</div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div class="op-row">
+              <div class="op-name"><div class="op-dot orange"></div>Orange CI</div>
+              <div class="op-amounts">
+                <div class="op-val" id="op-orange-val">0 F</div>
+                <div class="op-diff" id="op-orange-pct">—</div>
+              </div>
+            </div>
+            <div class="op-row">
+              <div class="op-name"><div class="op-dot yellow"></div>Moov Africa</div>
+              <div class="op-amounts">
+                <div class="op-val" id="op-moov-val">0 F</div>
+                <div class="op-diff" id="op-moov-pct">—</div>
+              </div>
+            </div>
+            <div class="op-row">
+              <div class="op-name"><div class="op-dot blue"></div>MTN CI</div>
+              <div class="op-amounts">
+                <div class="op-val" id="op-mtn-val">0 F</div>
+                <div class="op-diff" id="op-mtn-pct">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commissions & Frais -->
+      <div class="kpi-grid" style="margin-top:10px;">
+        <div class="kpi-tile">
+          <div class="kpi-label">Commissions</div>
+          <div class="kpi-value" id="kpi-commissions">0 F</div>
+          <div class="kpi-sub">Ce mois</div>
+        </div>
+        <div class="kpi-tile">
+          <div class="kpi-label">Frais recharge</div>
+          <div class="kpi-value" id="kpi-frais">0 F</div>
+          <div class="kpi-sub">Total</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== TAB: CRÉDIT CLIENTS ====== -->
+    <div class="tab-pane" id="tab-credits">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('credits',-1)">‹</button>
+          <span style="font-size:12px;color:var(--fg2);font-weight:600;min-width:90px;text-align:center;" id="credits-month"></span>
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('credits',1)">›</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="setMonth('credits',null)">Tous</button>
+      </div>
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" placeholder="Rechercher un client..." id="credit-search" oninput="renderCredits()">
+      </div>
+      <div id="credits-list"></div>
+    </div>
+
+    <!-- ====== TAB: SUIVI STOCK ====== -->
+    <div class="tab-pane" id="tab-suivi">
+      <div class="section-header">
+        <span class="section-title">Journal des soldes EME</span>
+        <button class="btn btn-primary btn-sm" onclick="openAddSuivi()">+ Jour</button>
+      </div>
+      <div id="suivi-list"></div>
+    </div>
+
+    <!-- ====== TAB: ACHATS UV ====== -->
+    <div class="tab-pane" id="tab-achats">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('achats',-1)">‹</button>
+          <span style="font-size:12px;color:var(--fg2);font-weight:600;min-width:90px;text-align:center;" id="achats-month"></span>
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('achats',1)">›</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="setMonth('achats',null)">Tous</button>
+      </div>
+      <div id="achats-list"></div>
+    </div>
+
+    <!-- ====== TAB: COMMISSIONS ====== -->
+    <div class="tab-pane" id="tab-commissions">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('commissions',-1)">‹</button>
+          <span style="font-size:12px;color:var(--fg2);font-weight:600;min-width:90px;text-align:center;" id="commissions-month"></span>
+          <button class="btn-icon" style="background:var(--surface2);color:var(--fg);border-radius:6px;padding:4px 8px;font-size:14px;border:1px solid var(--border);" onclick="shiftMonth('commissions',1)">›</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="setMonth('commissions',null)">Tous</button>
+      </div>
+      <div id="commissions-list"></div>
+    </div>
+
+    <!-- TAB FEUIL3 masqué -->
+    <div class="tab-pane" id="tab-feuil3" style="display:none!important;">
+      <div id="feuil3-total-card"></div>
+      <div id="feuil3-list"></div>
+    </div>
+
+  </div><!-- /content -->
+
+  <!-- FAB dynamique par onglet -->
+  <button class="fab" id="fab-btn" onclick="fabAction()">＋</button>
+
+</div><!-- /app -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- === MODAL: Ajouter crédit client === -->
+<div class="modal-overlay" id="modal-credit">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-credit-title">Nouveau crédit client</div>
+    <div class="form-group" style="position:relative;">
+      <label class="form-label">Nom client</label>
+      <input type="text" class="form-control" id="cr-nom" placeholder="Ex: Ouattara Bintou" autocomplete="off"
+        oninput="suggestContacts(this.value)" onblur="setTimeout(()=>closeContactSuggest(),200)">
+      <div id="cr-suggest" class="autocomplete-list" style="display:none;"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">N° Client</label>
+        <input type="text" class="form-control" id="cr-id" placeholder="C021">
+      </div>
+      <div class="form-group">
+        <label class="form-label">N° Téléphone</label>
+        <div style="display:flex;gap:6px;">
+          <input type="tel" class="form-control" id="cr-tel" placeholder="07 00 00 00 00" style="flex:1">
+          <button type="button" onclick="pickContact()" style="padding:0 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:18px;cursor:pointer;" title="Choisir dans les contacts">📱</button>
+        </div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Montant crédit (F)</label>
+        <input type="number" class="form-control" id="cr-montant" placeholder="0" min="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Date crédit</label>
+        <input type="date" class="form-control" id="cr-date">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Remarques</label>
+      <input type="text" class="form-control" id="cr-remarque" placeholder="Notes optionnelles">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-credit')">Annuler</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveCredit()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Paiement partiel/total === -->
+<div class="modal-overlay" id="modal-payment">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Enregistrer un paiement</div>
+    <input type="hidden" id="pay-client-id">
+    <div id="pay-info" style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px;margin-bottom:14px;font-size:13px;"></div>
+    <div class="form-group">
+      <label class="form-label">Montant payé (F)</label>
+      <input type="number" class="form-control" id="pay-montant" placeholder="0" min="0">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-payment')">Annuler</button>
+      <button class="btn btn-success" style="flex:1" onclick="savePayment()">Payer</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Export Excel === -->
+<div class="modal-overlay" id="modal-export">
+  <div class="modal-sheet" style="max-height:320px;">
+    <div class="modal-handle"></div>
+    <div class="modal-title">📥 Exporter en Excel</div>
+    <div class="form-group" style="margin-top:12px;">
+      <label class="form-label">Mois à exporter</label>
+      <select class="form-control" id="export-month-sel"></select>
+    </div>
+    <div style="font-size:12px;color:var(--fg3);margin:8px 0 16px;">
+      Inclut : Crédits · Suivi Stock · Achats UV · Commissions
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1;" onclick="closeModal('modal-export')">Annuler</button>
+      <button class="btn btn-primary" style="flex:2;" onclick="exportExcel()">📥 Télécharger .xlsx</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Suivi Stock === -->
+<div class="modal-overlay" id="modal-suivi">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-suivi-title">Nouveau relevé de stock</div>
+    <input type="hidden" id="sv-edit-idx" value="">
+    <!-- Info pré-remplissage -->
+    <div id="sv-prefill-info" style="display:none;background:var(--green-pale);border-radius:var(--radius-sm);padding:8px 12px;font-size:12px;color:var(--green);margin-bottom:8px;">
+      📋 Pré-rempli depuis la fermeture de la veille
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-control" id="sv-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Ouv/Ferm</label>
+        <select class="form-control" id="sv-type">
+          <option value="ouv">Ouverture</option>
+          <option value="ferm">Fermeture</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-title" style="margin-bottom:8px;">Soldes EME (UV)</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">🟠 Orange (F)</label>
+        <input type="number" class="form-control" id="sv-orange" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🟡 Moov (F)</label>
+        <input type="number" class="form-control" id="sv-moov" placeholder="0">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">🔵 MTN (F)</label>
+        <input type="number" class="form-control" id="sv-mtn" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">TCI (F)</label>
+        <input type="number" class="form-control" id="sv-tci" placeholder="0">
+      </div>
+    </div>
+    <div class="section-title" style="margin:8px 0;">Caisse</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Wave 1 (F)</label>
+        <input type="number" class="form-control" id="sv-wave1" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Wave 2 (F)</label>
+        <input type="number" class="form-control" id="sv-wave2" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Djamo (F)</label>
+      <input type="number" class="form-control" id="sv-djamo" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">💵 Espèces (F)</label>
+      <input type="number" class="form-control" id="sv-especes" placeholder="0">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-suivi')">Annuler</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveSuivi()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Achat UV === -->
+<div class="modal-overlay" id="modal-achat">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="modal-achat-title">Nouvel achat UV</div>
+    <input type="hidden" id="ac-edit-idx" value="">
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-control" id="ac-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fournisseur</label>
+        <select class="form-control" id="ac-fournisseur">
+          <option>Orange CI</option>
+          <option>Moov Africa</option>
+          <option>MTN CI</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Montant (F)</label>
+        <input type="number" class="form-control" id="ac-montant" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Mode paiement</label>
+        <select class="form-control" id="ac-mode" onchange="toggleFraisAchat(this.value)">
+          <option>Espèce</option>
+          <option>Wave</option>
+          <option>Orange Money</option>
+        </select>
+      </div>
+    </div>
+    <!-- Frais : visible seulement si Wave ou OM -->
+    <div class="form-group" id="ac-frais-row" style="display:none;">
+      <label class="form-label">Frais (F) <span style="font-size:11px;color:var(--fg3);">calculé automatiquement, modifiable</span></label>
+      <input type="number" class="form-control" id="ac-frais" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Remarques</label>
+      <input type="text" class="form-control" id="ac-remarque" placeholder="">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-achat')">Annuler</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveAchat()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Commission === -->
+<div class="modal-overlay" id="modal-commission">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nouvelle commission</div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Date</label>
+        <input type="date" class="form-control" id="cm-date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Fournisseur</label>
+        <select class="form-control" id="cm-fournisseur">
+          <option>Orange CI</option>
+          <option>Moov Africa</option>
+          <option>MTN CI</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Montant (F)</label>
+      <input type="number" class="form-control" id="cm-montant" placeholder="0">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Remarques</label>
+      <input type="text" class="form-control" id="cm-remarque" placeholder="">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-commission')">Annuler</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveCommission()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- === MODAL: Feuil3 === -->
+<div class="modal-overlay" id="modal-feuil3">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nouveau client B</div>
+    <div class="form-group">
+      <label class="form-label">Nom client</label>
+      <input type="text" class="form-control" id="f3-nom" placeholder="Nom complet">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Montant (F)</label>
+      <input type="number" class="form-control" id="f3-montant" placeholder="0">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeModal('modal-feuil3')">Annuler</button>
+      <button class="btn btn-primary" style="flex:1" onclick="saveFeuil3()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// DATA STORE — localStorage
+// =============================================
+const KEYS = {
+  credits: 'cp_credits',
+  suivi: 'cp_suivi',
+  achats: 'cp_achats',
+  commissions: 'cp_commissions',
+  feuil3: 'cp_feuil3',
+  theme: 'cp_theme'
+};
+
+function load(key) {
+  try { const d = localStorage.getItem(key); return d ? JSON.parse(d) : null; } catch(e) { return null; }
+}
+function save(key, data) {
+  try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+}
+
+// ===== SEED DATA from Excel =====
+function initData() {
+  // Credits clients (20 from Excel)
+  if (!load(KEYS.credits)) {
+    const credits = [
+      {id:'C001',nom:'Client 001',tel:'',date:'2026-10-01',montant:2000,paye:2000,remarque:''},
+      {id:'C002',nom:'Client 002',tel:'',date:'2026-10-01',montant:1500,paye:1500,remarque:''},
+      {id:'C003',nom:'Client 003',tel:'',date:'2026-10-01',montant:2000,paye:2000,remarque:''},
+      {id:'C004',nom:'Client 004',tel:'',date:'2026-10-01',montant:1500,paye:1500,remarque:''},
+      {id:'C005',nom:'Client 005',tel:'',date:'2026-10-01',montant:2000,paye:2000,remarque:''},
+      {id:'C006',nom:'MAURIC DIBI',tel:'',date:'2026-09-20',montant:700,paye:0,remarque:'Relance urgente'},
+      {id:'C007',nom:'Client 007',tel:'',date:'2026-10-02',montant:2500,paye:2500,remarque:''},
+      {id:'C008',nom:'Client 008',tel:'',date:'2026-10-02',montant:1000,paye:1000,remarque:''},
+      {id:'C009',nom:'Client 009',tel:'',date:'2026-10-03',montant:2000,paye:2000,remarque:''},
+      {id:'C010',nom:'Client 010',tel:'',date:'2026-10-03',montant:1500,paye:1500,remarque:''},
+      {id:'C011',nom:'Client 011',tel:'',date:'2026-10-03',montant:2000,paye:2000,remarque:''},
+      {id:'C012',nom:'Client 012',tel:'',date:'2026-10-04',montant:1500,paye:1500,remarque:''},
+      {id:'C013',nom:'Client 013',tel:'',date:'2026-10-04',montant:2000,paye:2000,remarque:''},
+      {id:'C014',nom:'Client 014',tel:'',date:'2026-10-05',montant:1000,paye:1000,remarque:''},
+      {id:'C015',nom:'Sousou',tel:'',date:'2026-08-08',montant:1500,paye:0,remarque:'82 jours - relancer'},
+      {id:'C016',nom:'KONE HENRY JOEL',tel:'',date:'2026-08-08',montant:1000,paye:0,remarque:'82 jours - relancer'},
+      {id:'C017',nom:'Client 017',tel:'',date:'2026-10-06',montant:2000,paye:2000,remarque:''},
+      {id:'C018',nom:'Client 018',tel:'',date:'2026-10-07',montant:1500,paye:1500,remarque:''},
+      {id:'C019',nom:'Client 019',tel:'',date:'2026-10-07',montant:2000,paye:2000,remarque:''},
+      {id:'C020',nom:'Client 020',tel:'',date:'2026-10-08',montant:1500,paye:1500,remarque:''},
+    ];
+    save(KEYS.credits, credits);
+  }
+
+  // Suivi stock (from Excel — Octobre 8–9)
+  if (!load(KEYS.suivi)) {
+    const suivi = [
+      {date:'2026-10-08',type:'ouv',orange:0,moov:0,mtn:0,tci:74105,wave1:0,wave2:0,djamo:0},
+      {date:'2026-10-08',type:'ferm',orange:29092,moov:1389,mtn:632,tci:74105,wave1:41561,wave2:11157,djamo:0},
+    ];
+    save(KEYS.suivi, suivi);
+  }
+
+  // Achats UV (14 from Excel, Oct 1–8)
+  if (!load(KEYS.achats)) {
+    const achats = [
+      {date:'2026-10-01',fournisseur:'Orange CI',montant:20000,mode:'Espèce',remarque:''},
+      {date:'2026-10-01',fournisseur:'Moov Africa',montant:15000,mode:'Espèce',remarque:''},
+      {date:'2026-10-02',fournisseur:'Orange CI',montant:25000,mode:'Espèce',remarque:''},
+      {date:'2026-10-02',fournisseur:'MTN CI',montant:10000,mode:'Espèce',remarque:''},
+      {date:'2026-10-03',fournisseur:'Orange CI',montant:30000,mode:'Espèce',remarque:''},
+      {date:'2026-10-03',fournisseur:'Moov Africa',montant:20000,mode:'Wave',remarque:''},
+      {date:'2026-10-04',fournisseur:'Orange CI',montant:35000,mode:'Espèce',remarque:''},
+      {date:'2026-10-04',fournisseur:'MTN CI',montant:16800,mode:'Espèce',remarque:''},
+      {date:'2026-10-05',fournisseur:'Orange CI',montant:40000,mode:'Espèce',remarque:''},
+      {date:'2026-10-05',fournisseur:'Moov Africa',montant:25000,mode:'Espèce',remarque:''},
+      {date:'2026-10-06',fournisseur:'Orange CI',montant:45000,mode:'Espèce',remarque:''},
+      {date:'2026-10-06',fournisseur:'Moov Africa',montant:30000,mode:'Espèce',remarque:''},
+      {date:'2026-10-07',fournisseur:'Orange CI',montant:34000,mode:'Espèce',remarque:''},
+      {date:'2026-10-08',fournisseur:'MTN CI',montant:40000,mode:'Espèce',remarque:''},
+    ];
+    save(KEYS.achats, achats);
+  }
+
+  // Commissions (3 from Excel)
+  if (!load(KEYS.commissions)) {
+    const commissions = [
+      {date:'2026-09-03',fournisseur:'Orange CI',montant:5000,remarque:''},
+      {date:'2026-09-03',fournisseur:'Moov Africa',montant:5000,remarque:''},
+      {date:'2026-09-09',fournisseur:'Orange CI',montant:5000,remarque:''},
+    ];
+    save(KEYS.commissions, commissions);
+  }
+
+  // Feuil3 (18 entries from Excel)
+  if (!load(KEYS.feuil3)) {
+    const feuil3 = [
+      {nom:'OUATTARA BINTOU',montant:28000},{nom:'Essoh Océane',montant:26900},
+      {nom:'Meledje',montant:20000},{nom:'Ibrahim Sawadogo',montant:33500},
+      {nom:'Augustine',montant:22700},{nom:'Blanche',montant:15000},
+      {nom:'Ariane',montant:27500},{nom:'Stéphanie',montant:12800},
+      {nom:'Big douhaou',montant:9150},{nom:'Affi',montant:9000},
+      {nom:'Mum Yvy',montant:7400},{nom:'Kliba',montant:7200},
+      {nom:'Arnold',montant:5600},{nom:'Majoie',montant:11000},
+      {nom:'Auxiliaire',montant:12000},{nom:'Alouna',montant:11500},
+      {nom:'Samira',montant:7000},{nom:'Acsa',montant:15500},
+    ];
+    save(KEYS.feuil3, feuil3);
+  }
+}
+
+// =============================================
+// UTILS
+// =============================================
+function fmt(n) {
+  if (n === undefined || n === null || isNaN(n)) return '0 F';
+  return Math.round(n).toLocaleString('fr-FR') + ' F';
+}
+function fmtShort(n) {
+  if (!n) return '0';
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n/1000).toFixed(0) + 'k';
+  return Math.round(n).toString();
+}
+function today() {
+  return new Date().toISOString().slice(0,10);
+}
+function daysDiff(dateStr) {
+  const d = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now - d) / 86400000);
+}
+function fmtDate(d) {
+  if (!d) return '';
+  const [y,m,day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// =============================================
+// CONFIRM DELETE (custom — confirm() bloqué dans iframe)
+// =============================================
+function confirmDelete(msg, fn) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--radius);padding:24px;max-width:320px;width:100%;box-shadow:var(--shadow-md);">
+      <p style="font-size:15px;color:var(--fg);margin-bottom:20px;text-align:center;">${msg}</p>
+      <div style="display:flex;gap:10px;">
+        <button id="cd-non" style="flex:1;padding:10px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:14px;font-weight:600;cursor:pointer;">Non</button>
+        <button id="cd-oui" style="flex:1;padding:10px;border-radius:var(--radius-sm);border:none;background:var(--red);color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Oui, supprimer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => document.body.removeChild(overlay);
+  overlay.querySelector('#cd-non').onclick = close;
+  overlay.querySelector('#cd-oui').onclick = () => { close(); fn(); };
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+}
+
+// =============================================
+// THEME
+// =============================================
+function initTheme() {
+  const t = load(KEYS.theme);
+  if (t) document.documentElement.dataset.theme = t;
+  updateThemeBtn();
+}
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme;
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  save(KEYS.theme, next);
+  updateThemeBtn();
+}
+function updateThemeBtn() {
+  const t = document.documentElement.dataset.theme;
+  const isDark = t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+}
+
+// =============================================
+// MONTH FILTER
+// =============================================
+// selectedMonth[tab] = 'YYYY-MM' or null (= tous)
+const selectedMonth = { dashboard: null, credits: null, achats: null, commissions: null };
+
+function currentMonthStr() {
+  const now = new Date();
+  return now.toISOString().slice(0,7); // 'YYYY-MM'
+}
+
+function shiftMonth(tab, delta) {
+  const cur = selectedMonth[tab] || currentMonthStr();
+  const [y, m] = cur.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  selectedMonth[tab] = d.toISOString().slice(0,7);
+  refreshByTab(tab);
+}
+
+function setMonth(tab, val) {
+  selectedMonth[tab] = val;
+  refreshByTab(tab);
+}
+
+function refreshByTab(tab) {
+  if (tab === 'dashboard') renderDashboard();
+  else if (tab === 'credits') renderCredits();
+  else if (tab === 'achats') renderAchats();
+  else if (tab === 'commissions') renderCommissions();
+}
+
+function fmtMonthLabel(ym) {
+  if (!ym) return 'Tous';
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1, 1);
+  return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+}
+
+function updateMonthLabel(tab, ym) {
+  const el = document.getElementById(tab + '-month');
+  if (el) el.textContent = ym ? fmtMonthLabel(ym) : 'Tous';
+}
+
+function filterByMonth(arr, tab) {
+  const ym = selectedMonth[tab];
+  if (!ym) return arr;
+  return arr.filter(x => (x.date || '').startsWith(ym));
+}
+
+// =============================================
+// TAB NAVIGATION
+// =============================================
+let currentTab = 'dashboard';
+function switchTab(tab) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    if (b.getAttribute('onclick').includes("'" + tab + "'")) b.classList.add('active');
+  });
+  currentTab = tab;
+  const fabMap = {
+    dashboard: null,
+    credits: 'openAddCredit',
+    suivi: 'openAddSuivi',
+    achats: 'openAddAchat',
+    commissions: 'openAddCommission'
+  };
+  const fab = document.getElementById('fab-btn');
+  fab.hidden = !fabMap[tab];
+}
+function fabAction() {
+  const map = {
+    credits: openAddCredit,
+    suivi: openAddSuivi,
+    achats: openAddAchat,
+    commissions: openAddCommission
+  };
+  if (map[currentTab]) map[currentTab]();
+}
+
+// =============================================
+// MODAL HELPERS
+// =============================================
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+// =============================================
+// CREDITS
+// =============================================
+let editingCreditIndex = null;
+
+function openAddCredit() {
+  editingCreditIndex = null;
+  document.getElementById('modal-credit-title').textContent = 'Nouveau crédit client';
+  ['cr-nom','cr-id','cr-tel','cr-montant','cr-remarque'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cr-date').value = today();
+  // Auto-generate next ID
+  const credits = load(KEYS.credits) || [];
+  const nums = credits.map(c => parseInt((c.id||'C0').replace(/\D/g,''))).filter(Boolean);
+  const next = nums.length ? Math.max(...nums)+1 : 1;
+  document.getElementById('cr-id').value = 'C' + String(next).padStart(3,'0');
+  openModal('modal-credit');
+}
+
+function openEditCredit(idx) {
+  editingCreditIndex = idx;
+  const credits = load(KEYS.credits) || [];
+  const c = credits[idx];
+  document.getElementById('modal-credit-title').textContent = 'Modifier crédit';
+  document.getElementById('cr-nom').value = c.nom || '';
+  document.getElementById('cr-id').value = c.id || '';
+  document.getElementById('cr-tel').value = c.tel || '';
+  document.getElementById('cr-date').value = c.date || '';
+  document.getElementById('cr-montant').value = c.montant || '';
+  document.getElementById('cr-remarque').value = c.remarque || '';
+  if (document.getElementById('cr-operateur')) document.getElementById('cr-operateur').value = c.operateur || '';
+  openModal('modal-credit');
+}
+
+// Autocomplétion depuis clients déjà enregistrés
+function suggestContacts(query) {
+  const box = document.getElementById('cr-suggest');
+  if (!query || query.length < 2) { box.style.display = 'none'; return; }
+  const credits = load(KEYS.credits) || [];
+  const q = query.toLowerCase();
+  // Clients uniques déjà enregistrés
+  const seen = new Set();
+  const matches = credits.filter(c => {
+    const key = (c.nom || '').toLowerCase();
+    if (!key.includes(q) || seen.has(c.nom)) return false;
+    seen.add(c.nom); return true;
+  }).slice(0, 6);
+  if (!matches.length) { box.style.display = 'none'; return; }
+  box.innerHTML = matches.map(c => `
+    <div class="autocomplete-item" onmousedown="fillContact('${(c.nom||'').replace(/'/g,"\\'")}','${(c.tel||'').replace(/'/g,"\\'")}','${(c.id||'').replace(/'/g,"\\'")}')">
+      <span style="font-weight:600;">${c.nom}</span>
+      ${c.tel ? `<span style="color:var(--fg3);margin-left:8px;">${c.tel}</span>` : ''}
+    </div>`).join('');
+  box.style.display = 'block';
+}
+function fillContact(nom, tel, id) {
+  document.getElementById('cr-nom').value = nom;
+  if (tel) document.getElementById('cr-tel').value = tel;
+  // Ne pas écraser l'ID auto-généré si déjà rempli
+  closeContactSuggest();
+}
+function closeContactSuggest() {
+  const box = document.getElementById('cr-suggest');
+  if (box) box.style.display = 'none';
+}
+
+// Répertoire de contacts (Contact Picker API — Android Chrome uniquement)
+async function pickContact() {
+  if (!('contacts' in navigator && 'ContactsManager' in window)) {
+    showToast('📱 Contacts non disponibles sur ce navigateur');
+    return;
+  }
+  try {
+    const contacts = await navigator.contacts.select(['name','tel'], { multiple: false });
+    if (contacts.length > 0) {
+      const c = contacts[0];
+      if (c.name && c.name[0]) document.getElementById('cr-nom').value = c.name[0];
+      if (c.tel && c.tel[0]) document.getElementById('cr-tel').value = c.tel[0].replace(/\s+/g,'');
+    }
+  } catch(e) {
+    showToast('⚠️ Accès aux contacts annulé');
+  }
+}
+
+// Fiche complète crédit (pour capture d'écran)
+function showFicheCredit(idx) {
+  const credits = load(KEYS.credits) || [];
+  const c = credits[idx];
+  if (!c) return;
+  const reste = c.montant - c.paye;
+  const jours = daysDiff(c.date);
+  const statut = reste === 0 ? '✅ Soldé' : jours >= 2 ? '🚨 En retard' : '⏳ En cours';
+  const statutColor = reste === 0 ? 'var(--green)' : jours >= 2 ? 'var(--red)' : 'var(--yellow)';
+  const pct = c.montant ? Math.round(c.paye / c.montant * 100) : 0;
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML = `
+    <div id="fiche-credit-card" style="background:var(--surface);border-radius:var(--radius);width:100%;max-width:360px;overflow:hidden;box-shadow:var(--shadow-md);">
+      <!-- En-tête -->
+      <div style="background:var(--orange);padding:16px 20px;color:#fff;">
+        <div style="font-size:11px;opacity:.8;letter-spacing:.5px;text-transform:uppercase;">ConnectPlus CI</div>
+        <div style="font-size:20px;font-weight:700;margin-top:4px;">${c.nom}</div>
+        <div style="font-size:12px;opacity:.85;margin-top:2px;">${c.id || ''}${c.tel ? ' · ' + c.tel : ''}</div>
+      </div>
+      <!-- Corps -->
+      <div style="padding:16px 20px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--fg2);">Statut</div>
+          <div style="font-weight:700;color:${statutColor};">${statut}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:13px;color:var(--fg2);">Date crédit</div>
+          <div style="font-weight:600;">${fmtDate(c.date)}</div>
+        </div>
+        ${jours > 0 && reste > 0 ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:13px;color:var(--fg2);">Retard</div>
+          <div style="font-weight:600;color:var(--red);">${jours} jour${jours > 1 ? 's' : ''}</div>
+        </div>` : ''}
+        ${c.operateur ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <div style="font-size:13px;color:var(--fg2);">Opérateur</div>
+          <div style="font-weight:600;">${c.operateur}</div>
+        </div>` : ''}
+        <div style="border-top:1px solid var(--border);margin:12px 0;"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:13px;color:var(--fg2);">Montant crédit</div>
+          <div style="font-weight:700;font-size:16px;">${fmt(c.montant)} F</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="font-size:13px;color:var(--fg2);">Déjà payé</div>
+          <div style="font-weight:600;color:var(--green);">${fmt(c.paye)} F</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-size:13px;color:var(--fg2);">Reste dû</div>
+          <div style="font-weight:700;font-size:18px;color:${reste > 0 ? 'var(--red)' : 'var(--green)'};">${fmt(reste)} F</div>
+        </div>
+        <!-- Barre progression -->
+        <div style="background:var(--surface2);border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px;">
+          <div style="width:${pct}%;height:100%;background:${pct===100 ? 'var(--green)' : 'var(--orange)'};border-radius:4px;"></div>
+        </div>
+        <div style="text-align:right;font-size:11px;color:var(--fg3);">${pct}% remboursé</div>
+        ${c.remarque ? `<div style="margin-top:12px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);font-size:12px;color:var(--fg2);">📝 ${c.remarque}</div>` : ''}
+        <div style="margin-top:4px;font-size:10px;color:var(--fg3);text-align:right;">Généré le ${new Date().toLocaleDateString('fr-FR')} · ConnectPlus CI</div>
+      </div>
+      <div style="padding:0 16px 16px;display:flex;gap:8px;">
+        <button onclick="this.closest('[style*=fixed]').remove()" style="flex:1;padding:10px;background:var(--surface2);border:none;border-radius:var(--radius-sm);font-weight:600;font-size:13px;cursor:pointer;color:var(--fg);">Fermer</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function saveCredit() {
+  const nom = document.getElementById('cr-nom').value.trim();
+  const montant = parseFloat(document.getElementById('cr-montant').value) || 0;
+  if (!nom || !montant) { showToast('⚠️ Nom et montant requis'); return; }
+  const credits = load(KEYS.credits) || [];
+  const entry = {
+    id: document.getElementById('cr-id').value.trim(),
+    nom,
+    tel: document.getElementById('cr-tel').value.trim(),
+    date: document.getElementById('cr-date').value,
+    montant,
+    paye: editingCreditIndex !== null ? credits[editingCreditIndex].paye : 0,
+    remarque: document.getElementById('cr-remarque').value.trim()
+  };
+  if (editingCreditIndex !== null) {
+    credits[editingCreditIndex] = { ...credits[editingCreditIndex], ...entry };
+  } else {
+    credits.push(entry);
+  }
+  save(KEYS.credits, credits);
+  closeModal('modal-credit');
+  renderCredits();
+  renderDashboard();
+  showToast('✅ Crédit enregistré');
+}
+
+function openPayment(idx) {
+  const credits = load(KEYS.credits) || [];
+  const c = credits[idx];
+  document.getElementById('pay-client-id').value = idx;
+  const reste = c.montant - c.paye;
+  document.getElementById('pay-info').innerHTML = `
+    <strong>${c.nom}</strong> (${c.id})<br>
+    Crédit: <strong>${fmt(c.montant)}</strong> | Payé: <strong style="color:var(--green)">${fmt(c.paye)}</strong> | Reste: <strong style="color:var(--red)">${fmt(reste)}</strong>
+  `;
+  document.getElementById('pay-montant').value = reste;
+  openModal('modal-payment');
+}
+
+function savePayment() {
+  const idx = parseInt(document.getElementById('pay-client-id').value);
+  const amount = parseFloat(document.getElementById('pay-montant').value) || 0;
+  if (!amount) { showToast('⚠️ Montant requis'); return; }
+  const credits = load(KEYS.credits) || [];
+  credits[idx].paye = Math.min(credits[idx].montant, credits[idx].paye + amount);
+  save(KEYS.credits, credits);
+  closeModal('modal-payment');
+  renderCredits();
+  renderDashboard();
+  showToast('✅ Paiement enregistré');
+}
+
+function deleteCredit(idx) {
+  const credits = load(KEYS.credits) || [];
+  credits.splice(idx, 1);
+  save(KEYS.credits, credits);
+  renderCredits();
+  renderDashboard();
+  showToast('🗑️ Supprimé');
+}
+
+function renderCredits() {
+  const credits = load(KEYS.credits) || [];
+  const q = (document.getElementById('credit-search').value || '').toLowerCase();
+  const el = document.getElementById('credits-list');
+
+  updateMonthLabel('credits', selectedMonth['credits']);
+
+  // Sort: alertes first, then non-payés, then payés
+  const filtered = credits.map((c,i) => ({...c, _idx:i}))
+    .filter(c => {
+      if (selectedMonth['credits'] && !(c.date||'').startsWith(selectedMonth['credits'])) return false;
+      return !q || c.nom.toLowerCase().includes(q) || (c.id||'').toLowerCase().includes(q);
+    });
+  filtered.sort((a,b) => {
+    const aReste = a.montant - a.paye;
+    const bReste = b.montant - b.paye;
+    const aOld = daysDiff(a.date);
+    const bOld = daysDiff(b.date);
+    if (aReste > 0 && bReste === 0) return -1;
+    if (bReste > 0 && aReste === 0) return 1;
+    return bOld - aOld;
+  });
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p>Aucun client trouvé.<br>Appuyez sur + pour ajouter.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map(c => {
+    const reste = c.montant - c.paye;
+    const paid = reste === 0;
+    const jours = daysDiff(c.date);
+    const alert = !paid && jours >= 2;
+    const pct = c.montant ? Math.round(c.paye/c.montant*100) : 0;
+    const cls = paid ? 'paid' : (alert ? 'alert' : 'unpaid');
+    const badgeHtml = paid
+      ? '<span class="badge badge-green">✅ Payé</span>'
+      : alert
+        ? `<span class="badge badge-red">🔴 Relancer · ${jours}j</span>`
+        : '<span class="badge badge-orange">⏳ En attente</span>';
+    return `
+      <div class="client-item ${cls}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div class="client-name" onclick="showFicheCredit(${c._idx})" style="cursor:pointer;text-decoration:underline dotted var(--fg3);">${c.nom} <span style="font-size:11px;color:var(--fg3);">📋</span></div>
+            <div class="client-id">${c.id}${c.tel ? ' · ' + c.tel : ''} · ${fmtDate(c.date)}</div>
+          </div>
+          ${badgeHtml}
+        </div>
+        <div class="client-row">
+          <div class="client-amounts">
+            <div class="amount-block">
+              <div class="amount-label">Crédit</div>
+              <div class="amount-val">${fmt(c.montant)}</div>
+            </div>
+            <div class="amount-block">
+              <div class="amount-label">Payé</div>
+              <div class="amount-val green">${fmt(c.paye)}</div>
+            </div>
+            <div class="amount-block">
+              <div class="amount-label">Reste</div>
+              <div class="amount-val ${reste > 0 ? 'red' : 'green'}">${fmt(reste)}</div>
+            </div>
+          </div>
+          <div class="client-actions">
+            ${!paid ? `<button class="btn btn-success btn-sm" onclick="openPayment(${c._idx})">💵 Payer</button>` : ''}
+            <button class="btn btn-ghost btn-sm" onclick="openEditCredit(${c._idx})">✏️</button>
+            <button class="btn-del" onclick="confirmDelete('Supprimer ce crédit ?', () => deleteCredit(${c._idx}))">🗑️</button>
+          </div>
+        </div>
+        ${c.montant > 0 ? `
+        <div class="progress-bar" style="margin-top:8px;">
+          <div class="progress-fill" style="width:${pct}%;background:${paid?'var(--green)':alert?'var(--red)':'var(--orange)'}"></div>
+        </div>` : ''}
+        ${c.remarque ? `<div style="font-size:11px;color:var(--fg3);margin-top:4px;">💬 ${c.remarque}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+// =============================================
+// SUIVI STOCK
+// =============================================
+function openAddSuivi() {
+  document.getElementById('modal-suivi-title').textContent = 'Nouveau relevé de stock';
+  document.getElementById('sv-edit-idx').value = '';
+  document.getElementById('sv-prefill-info').style.display = 'none';
+  document.getElementById('sv-date').value = today();
+  document.getElementById('sv-type').value = 'ouv';
+  ['sv-orange','sv-moov','sv-mtn','sv-tci','sv-wave1','sv-wave2','sv-djamo','sv-especes'].forEach(id => document.getElementById(id).value = '');
+
+  // Pré-remplir ouverture depuis fermeture de la veille
+  const suivi = load(KEYS.suivi) || [];
+  const hier = new Date(); hier.setDate(hier.getDate() - 1);
+  const hierStr = hier.toISOString().slice(0,10);
+  const fermHier = suivi.find(s => s.date === hierStr && s.type === 'ferm');
+  if (fermHier) {
+    ['orange','moov','mtn','tci','wave1','wave2','djamo','especes'].forEach(k => {
+      document.getElementById('sv-' + k).value = fermHier[k] || '';
+    });
+    document.getElementById('sv-prefill-info').style.display = 'block';
+  }
+  openModal('modal-suivi');
+}
+
+function openEditSuivi(idx) {
+  const suivi = load(KEYS.suivi) || [];
+  const e = suivi[idx];
+  if (!e) return;
+  document.getElementById('modal-suivi-title').textContent = 'Modifier le relevé';
+  document.getElementById('sv-edit-idx').value = idx;
+  document.getElementById('sv-prefill-info').style.display = 'none';
+  document.getElementById('sv-date').value = e.date;
+  document.getElementById('sv-type').value = e.type;
+  ['orange','moov','mtn','tci','wave1','wave2','djamo','especes'].forEach(k => {
+    document.getElementById('sv-' + k).value = e[k] || '';
+  });
+  openModal('modal-suivi');
+}
+
+function saveSuivi() {
+  const date = document.getElementById('sv-date').value;
+  if (!date) { showToast('⚠️ Date requise'); return; }
+  const suivi = load(KEYS.suivi) || [];
+  const editIdx = document.getElementById('sv-edit-idx').value;
+  const entry = {
+    date,
+    type: document.getElementById('sv-type').value,
+    orange: parseFloat(document.getElementById('sv-orange').value) || 0,
+    moov: parseFloat(document.getElementById('sv-moov').value) || 0,
+    mtn: parseFloat(document.getElementById('sv-mtn').value) || 0,
+    tci: parseFloat(document.getElementById('sv-tci').value) || 0,
+    wave1: parseFloat(document.getElementById('sv-wave1').value) || 0,
+    wave2: parseFloat(document.getElementById('sv-wave2').value) || 0,
+    djamo: parseFloat(document.getElementById('sv-djamo').value) || 0,
+    especes: parseFloat(document.getElementById('sv-especes').value) || 0,
+  };
+  if (editIdx !== '') {
+    suivi[parseInt(editIdx)] = entry;
+    showToast('✅ Relevé modifié');
+  } else {
+    suivi.push(entry);
+    showToast('✅ Relevé enregistré');
+  }
+  suivi.sort((a,b) => b.date.localeCompare(a.date) || (b.type === 'ferm' ? 1 : -1));
+  try { save(KEYS.suivi, suivi); } catch(e) { showToast('⚠️ Erreur sauvegarde: ' + e.message); return; }
+  closeModal('modal-suivi');
+  showToast('✅ Relevé enregistré !');
+  renderSuivi();
+}
+
+function deleteSuivi(idx) {
+  const suivi = load(KEYS.suivi) || [];
+  suivi.splice(idx, 1);
+  save(KEYS.suivi, suivi);
+  renderSuivi();
+}
+
+function renderSuivi() {
+  let suivi;
+  try { suivi = load(KEYS.suivi) || []; } catch(e) { suivi = []; }
+  const el = document.getElementById('suivi-list');
+  if (!suivi.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📈</div><p>Aucun relevé.<br>Appuyez sur <b>+</b> pour ajouter le solde du jour.</p></div>`;
+    return;
+  }
+
+  // Group by date, preserve original index for delete
+  const byDate = {};
+  suivi.forEach((s, idx) => {
+    if (!byDate[s.date]) byDate[s.date] = [];
+    byDate[s.date].push({...s, _idx: idx});
+  });
+
+  el.innerHTML = Object.entries(byDate).sort((a,b) => b[0].localeCompare(a[0])).map(([date, entries]) => {
+    const ouv  = entries.find(e => e.type === 'ouv');
+    const ferm = entries.find(e => e.type === 'ferm');
+    // UV vendues = Ouv − Ferm (per operator, UV consumed = stock gone down)
+    // EME operators (UV Vendus = Ouv - Ferm)
+    const opsEME = [
+      { label:'🟠 Orange', key:'orange', color:'#FF6B00' },
+      { label:'🟡 Moov',   key:'moov',   color:'#FFB800' },
+      { label:'🔵 MTN',    key:'mtn',    color:'#00A0DC' },
+      { label:'📶 TCI',    key:'tci',    color:'#8B5CF6' },
+    ];
+    // Caisse items (pas d'UV vendus)
+    const opsCaisse = [
+      { label:'💳 Wave 1',  key:'wave1'  },
+      { label:'💳 Wave 2',  key:'wave2'  },
+      { label:'💼 Djamo',   key:'djamo'  },
+      { label:'💵 Espèces', key:'especes'},
+    ];
+    const allKeys = [...opsEME.map(o=>o.key), ...opsCaisse.map(o=>o.key)];
+    const sumAll = (obj) => obj ? allKeys.reduce((s,k) => s + (parseFloat(obj[k])||0), 0) : 0;
+    const totalFerm = sumAll(ferm);
+    const totalOuv  = sumAll(ouv);
+
+    // Header shows closing total (trésorerie de fin de journée)
+    const headerTotal = ferm ? totalFerm : (ouv ? totalOuv : 0);
+
+    const makeOpRow = (label, key, color, showVendus, isLast) => {
+      const ouvVal  = ouv  ? (parseFloat(ouv[key])  || 0) : null;
+      const fermVal = ferm ? (parseFloat(ferm[key]) || 0) : null;
+      const vendu   = showVendus && ouvVal !== null && fermVal !== null ? Math.max(0, ouvVal - fermVal) : null;
+      return `<div style="display:grid;grid-template-columns:90px 1fr 1fr 1fr;align-items:center;gap:4px;padding:5px 0;${isLast?'':'border-bottom:1px solid var(--border);'}font-size:12px;">
+        <div style="font-weight:600;color:${color||'var(--fg2)'};">${label}</div>
+        <div style="text-align:center;font-weight:600;font-variant-numeric:tabular-nums;">${ouvVal !== null ? fmt(ouvVal) : '—'}</div>
+        <div style="text-align:center;font-weight:600;font-variant-numeric:tabular-nums;">${fermVal !== null ? fmt(fermVal) : '—'}</div>
+        <div style="text-align:center;">${vendu !== null ? `<div style="font-weight:700;color:var(--orange);font-variant-numeric:tabular-nums;">${fmt(vendu)}</div>` : '<span style="color:var(--fg3);">—</span>'}</div>
+      </div>`;
+    };
+
+    const opRows = opsEME.map(op => makeOpRow(op.label, op.key, op.color, true, false)).join('');
+
+    // Séparateur + lignes caisse
+    const caisseHeader = `<div style="font-size:10px;font-weight:700;color:var(--fg3);text-transform:uppercase;letter-spacing:.5px;padding:8px 0 2px;border-top:2px solid var(--border);">Caisse</div>`;
+    const caisseRows = opsCaisse.map((op,i) => makeOpRow(op.label, op.key, 'var(--fg2)', false, i===opsCaisse.length-1)).join('');
+    const waveRow = caisseHeader + caisseRows;
+
+    // Achats UV du jour (par opérateur)
+    const achats = load(KEYS.achats) || [];
+    const achatsJour = achats.filter(a => a.date === date);
+    const achatsByOp = { orange: 0, moov: 0, mtn: 0 };
+    achatsJour.forEach(a => {
+      if (a.fournisseur === 'Orange CI') achatsByOp.orange += a.montant;
+      else if (a.fournisseur === 'Moov Africa') achatsByOp.moov += a.montant;
+      else if (a.fournisseur === 'MTN CI') achatsByOp.mtn += a.montant;
+    });
+    const totalAchatsJour = achatsByOp.orange + achatsByOp.moov + achatsByOp.mtn;
+
+    // Écart solde : Fermeture - Ouverture + Achats → positif = remboursement/capital, négatif = crédit client
+    const ecart = (ouv && ferm) ? (totalFerm - totalOuv + totalAchatsJour) : null;
+
+    // Edit/Delete buttons
+    const delBtns = entries.map(e => {
+      const label = e.type === 'ouv' ? 'Ouv' : 'Ferm';
+      return `
+        <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--blue);" onclick="openEditSuivi(${e._idx})">✏️ ${label}</button>
+        <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--fg3);" onclick="confirmDelete('Supprimer ce relevé ${label} ?', () => deleteSuivi(${e._idx}))">🗑️</button>`;
+    }).join('');
+
+    // Total UV vendus (EME uniquement)
+    const totalVendu = opsEME.reduce((s, op) => {
+      const ouvVal  = ouv  ? (ouv[op.key]  || 0) : 0;
+      const fermVal = ferm ? (ferm[op.key] || 0) : 0;
+      return s + (ouv && ferm ? Math.max(0, ouvVal - fermVal) : 0);
+    }, 0);
+
+    // Ligne achats du jour
+    const achatsRow = totalAchatsJour > 0 ? `
+      <div style="margin-top:6px;padding:6px 8px;background:var(--green-pale);border-radius:var(--radius-sm);font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:var(--green);font-weight:600;">🛒 Achats UV du jour</span>
+        <span style="color:var(--green);font-weight:700;">+${fmt(totalAchatsJour)}</span>
+      </div>` : '';
+
+    // Ligne écart
+    const ecartRow = ecart !== null ? (() => {
+      const pos = ecart >= 0;
+      const label = pos ? '📈 Remboursement / Capital entrant' : '📉 Crédit client contracté';
+      const color = pos ? 'var(--green)' : 'var(--red)';
+      return `<div style="margin-top:4px;padding:6px 8px;background:${pos ? 'var(--green-pale)' : 'var(--red-pale)'};border-radius:var(--radius-sm);font-size:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="color:${color};font-weight:600;">${label}</span>
+        <span style="color:${color};font-weight:700;">${pos ? '+' : ''}${fmt(ecart)}</span>
+      </div>`;
+    })() : '';
+
+    return `
+      <div class="journal-day open">
+        <div class="journal-day-header" onclick="this.parentElement.classList.toggle('open')">
+          <div class="date">📅 ${fmtDate(date)}</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${totalVendu > 0 ? `<span style="font-size:11px;background:var(--orange-pale);color:var(--orange);border-radius:10px;padding:2px 8px;font-weight:600;">-${fmt(totalVendu)}</span>` : ''}
+            <div class="total">${headerTotal ? fmt(headerTotal) : '—'}</div>
+          </div>
+        </div>
+        <div class="journal-day-body">
+          <div style="display:grid;grid-template-columns:90px 1fr 1fr 1fr;gap:4px;padding:4px 0 2px;font-size:10px;color:var(--fg3);font-weight:600;text-transform:uppercase;letter-spacing:.3px;">
+            <div></div><div style="text-align:center;">Ouverture</div><div style="text-align:center;">Fermeture</div><div style="text-align:center;">UV Vendus</div>
+          </div>
+          ${opRows}${waveRow}${achatsRow}${ecartRow}
+          <div style="margin-top:8px;display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;">${delBtns}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// =============================================
+// ACHATS UV
+// =============================================
+function toggleFraisAchat(mode) {
+  const row = document.getElementById('ac-frais-row');
+  const fraisEl = document.getElementById('ac-frais');
+  const montant = parseFloat(document.getElementById('ac-montant').value) || 0;
+  if (mode === 'Wave' || mode === 'Orange Money') {
+    row.style.display = 'block';
+    if (!fraisEl.value) fraisEl.value = Math.round(montant * 0.01) || '';
+  } else {
+    row.style.display = 'none';
+    fraisEl.value = '';
+  }
+}
+
+function openAddAchat() {
+  document.getElementById('modal-achat-title').textContent = 'Nouvel achat UV';
+  document.getElementById('ac-edit-idx').value = '';
+  document.getElementById('ac-date').value = today();
+  document.getElementById('ac-montant').value = '';
+  document.getElementById('ac-frais').value = '';
+  document.getElementById('ac-remarque').value = '';
+  document.getElementById('ac-mode').value = 'Espèce';
+  document.getElementById('ac-frais-row').style.display = 'none';
+  openModal('modal-achat');
+}
+
+function openEditAchat(idx) {
+  const achats = load(KEYS.achats) || [];
+  const a = achats[idx];
+  if (!a) return;
+  document.getElementById('modal-achat-title').textContent = 'Modifier achat UV';
+  document.getElementById('ac-edit-idx').value = idx;
+  document.getElementById('ac-date').value = a.date || '';
+  document.getElementById('ac-fournisseur').value = a.fournisseur || 'Orange CI';
+  document.getElementById('ac-montant').value = a.montant || '';
+  document.getElementById('ac-mode').value = a.mode || 'Espèce';
+  document.getElementById('ac-remarque').value = a.remarque || '';
+  // Frais
+  const hasWave = a.mode === 'Wave' || a.mode === 'Orange Money';
+  document.getElementById('ac-frais-row').style.display = hasWave ? 'block' : 'none';
+  document.getElementById('ac-frais').value = a.frais || '';
+  openModal('modal-achat');
+}
+
+function saveAchat() {
+  const date = document.getElementById('ac-date').value;
+  const montant = parseFloat(document.getElementById('ac-montant').value) || 0;
+  if (!date || !montant) { showToast('⚠️ Date et montant requis'); return; }
+  const mode = document.getElementById('ac-mode').value;
+  const hasWave = mode === 'Wave' || mode === 'Orange Money';
+  // Frais seulement si Wave/OM
+  const fraisEl = document.getElementById('ac-frais').value;
+  const frais = hasWave ? (parseFloat(fraisEl) || Math.round(montant * 0.01)) : 0;
+  const achats = load(KEYS.achats) || [];
+  const editIdx = document.getElementById('ac-edit-idx').value;
+  const entry = {
+    date,
+    fournisseur: document.getElementById('ac-fournisseur').value,
+    montant,
+    mode,
+    frais,
+    remarque: document.getElementById('ac-remarque').value.trim()
+  };
+  if (editIdx !== '') {
+    achats[parseInt(editIdx)] = entry;
+    showToast('✅ Achat modifié');
+  } else {
+    achats.push(entry);
+    showToast('✅ Achat enregistré');
+  }
+  achats.sort((a,b) => b.date.localeCompare(a.date));
+  save(KEYS.achats, achats);
+  closeModal('modal-achat');
+  renderAchats();
+  renderDashboard();
+}
+
+function deleteAchat(idx) {
+  const achats = load(KEYS.achats) || [];
+  achats.splice(idx, 1);
+  save(KEYS.achats, achats);
+  renderAchats();
+  renderDashboard();
+}
+
+function renderAchats() {
+  const achats = load(KEYS.achats) || [];
+  const el = document.getElementById('achats-list');
+  updateMonthLabel('achats', selectedMonth['achats']);
+  const withIdx = achats.map((a,i) => ({...a,_realIdx:i}));
+  const filteredWithIdx = filterByMonth(withIdx, 'achats');
+
+  if (!filteredWithIdx.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🛒</div><p>Aucun achat${selectedMonth['achats'] ? ' ce mois' : ''}.<br>Appuyez sur + Achat pour commencer.</p></div>`;
+    return;
+  }
+  const total = filteredWithIdx.reduce((s,a) => s+a.montant, 0);
+  const opColor = {'Orange CI':'#FF6B00','Moov Africa':'#FFB800','MTN CI':'#00A0DC'};
+  el.innerHTML = `
+    <div class="kpi-tile" style="margin-bottom:10px;background:var(--surface);">
+      <div class="kpi-label">Total achats${selectedMonth['achats'] ? ' — '+fmtMonthLabel(selectedMonth['achats']) : ''}</div>
+      <div class="kpi-value">${fmt(total)}</div>
+      <div class="kpi-sub">${filteredWithIdx.length} achat(s)</div>
+    </div>
+    ${filteredWithIdx.map(a => `
+    <div class="list-item">
+      <div class="list-item-left">
+        <div class="item-title" style="color:${opColor[a.fournisseur]||'var(--fg)'}">
+          ${a.fournisseur}
+        </div>
+        <div class="item-sub">📅 ${fmtDate(a.date)} · ${a.mode}${a.frais ? ' · Frais: '+fmt(a.frais) : ''}${a.remarque ? ' · '+a.remarque : ''}</div>
+      </div>
+      <div class="list-item-right" style="display:flex;align-items:center;gap:8px;">
+        <div class="item-amount">${fmt(a.montant)}</div>
+        <button class="btn btn-ghost btn-sm" style="font-size:15px;padding:4px 8px;" onclick="openEditAchat(${a._realIdx})">✏️</button>
+        <button class="btn-del" onclick="confirmDelete('Supprimer cet achat ?', () => deleteAchat(${a._realIdx}))">🗑️</button>
+      </div>
+    </div>
+  `).join('')}`;
+}
+
+// =============================================
+// COMMISSIONS
+// =============================================
+function openAddCommission() {
+  document.getElementById('cm-date').value = today();
+  document.getElementById('cm-montant').value = '';
+  document.getElementById('cm-remarque').value = '';
+  openModal('modal-commission');
+}
+
+function saveCommission() {
+  const date = document.getElementById('cm-date').value;
+  const montant = parseFloat(document.getElementById('cm-montant').value) || 0;
+  if (!date || !montant) { showToast('⚠️ Date et montant requis'); return; }
+  const commissions = load(KEYS.commissions) || [];
+  commissions.push({
+    date,
+    fournisseur: document.getElementById('cm-fournisseur').value,
+    montant,
+    remarque: document.getElementById('cm-remarque').value.trim()
+  });
+  commissions.sort((a,b) => b.date.localeCompare(a.date));
+  save(KEYS.commissions, commissions);
+  closeModal('modal-commission');
+  renderCommissions();
+  renderDashboard();
+  showToast('✅ Commission enregistrée');
+}
+
+function deleteCommission(idx) {
+  const commissions = load(KEYS.commissions) || [];
+  commissions.splice(idx, 1);
+  save(KEYS.commissions, commissions);
+  renderCommissions();
+  renderDashboard();
+}
+
+function renderCommissions() {
+  const commissions = load(KEYS.commissions) || [];
+  const el = document.getElementById('commissions-list');
+  updateMonthLabel('commissions', selectedMonth['commissions']);
+  const withIdx = commissions.map((c,i) => ({...c,_realIdx:i}));
+  const filtered = filterByMonth(withIdx, 'commissions');
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">💰</div><p>Aucune commission${selectedMonth['commissions'] ? ' ce mois' : ''}.<br>Appuyez sur + Commission.</p></div>`;
+    return;
+  }
+  const total = filtered.reduce((s,c) => s + c.montant, 0);
+  el.innerHTML = `
+    <div class="kpi-tile" style="margin-bottom:12px;background:var(--surface);">
+      <div class="kpi-label">Total commissions${selectedMonth['commissions'] ? ' — '+fmtMonthLabel(selectedMonth['commissions']) : ''}</div>
+      <div class="kpi-value" style="color:var(--green)">${fmt(total)}</div>
+      <div class="kpi-sub">${filtered.length} commission(s)</div>
+    </div>
+    ${filtered.map(c => `
+      <div class="list-item">
+        <div class="list-item-left">
+          <div class="item-title">${c.fournisseur}</div>
+          <div class="item-sub">📅 ${fmtDate(c.date)}${c.remarque ? ' · '+c.remarque : ''}</div>
+        </div>
+        <div class="list-item-right" style="display:flex;align-items:center;gap:10px;">
+          <div class="item-amount" style="color:var(--green)">+${fmt(c.montant)}</div>
+          <button class="btn-del" onclick="confirmDelete('Supprimer cette commission ?', () => deleteCommission(${c._realIdx}))">🗑️</button>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+// =============================================
+// FEUIL3
+// =============================================
+function openAddFeuil3() {
+  document.getElementById('f3-nom').value = '';
+  document.getElementById('f3-montant').value = '';
+  openModal('modal-feuil3');
+}
+
+function saveFeuil3() {
+  const nom = document.getElementById('f3-nom').value.trim();
+  const montant = parseFloat(document.getElementById('f3-montant').value) || 0;
+  if (!nom || !montant) { showToast('⚠️ Nom et montant requis'); return; }
+  const feuil3 = load(KEYS.feuil3) || [];
+  feuil3.push({ nom, montant });
+  save(KEYS.feuil3, feuil3);
+  closeModal('modal-feuil3');
+  renderFeuil3();
+  showToast('✅ Client ajouté');
+}
+
+function deleteFeuil3(idx) {
+  const feuil3 = load(KEYS.feuil3) || [];
+  feuil3.splice(idx, 1);
+  save(KEYS.feuil3, feuil3);
+  renderFeuil3();
+}
+
+function renderFeuil3() {
+  const feuil3 = load(KEYS.feuil3) || [];
+  const el = document.getElementById('feuil3-list');
+  const totalEl = document.getElementById('feuil3-total-card');
+  const total = feuil3.reduce((s,f) => s + f.montant, 0);
+
+  totalEl.innerHTML = `
+    <div class="kpi-tile accent">
+      <div class="kpi-label">Total clients B</div>
+      <div class="kpi-value">${fmt(total)}</div>
+      <div class="kpi-sub">${feuil3.length} clients</div>
+    </div>
+  `;
+
+  if (!feuil3.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>Aucun client B.<br>Appuyez sur + Client.</p></div>`;
+    return;
+  }
+  const sorted = [...feuil3].map((f,i) => ({...f,_idx:i})).sort((a,b) => b.montant - a.montant);
+  el.innerHTML = sorted.map(f => `
+    <div class="feuil3-item">
+      <div class="f-name">${f.nom}</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="f-amount">${fmt(f.montant)}</div>
+        <button class="btn-del" onclick="confirmDelete('Supprimer ce client ?', () => deleteFeuil3(${f._idx}))">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+// =============================================
+// DASHBOARD
+// =============================================
+function renderDashboard() {
+  const credits = load(KEYS.credits) || [];
+  const achats = load(KEYS.achats) || [];
+  const commissions = load(KEYS.commissions) || [];
+
+  updateMonthLabel('dashboard', selectedMonth['dashboard']);
+
+  // Filter by month
+  const creditsF = filterByMonth(credits, 'dashboard');
+  const achatsF = filterByMonth(achats, 'dashboard');
+  const commissionsF = filterByMonth(commissions, 'dashboard');
+
+  // Credits KPIs
+  const totalCredit = creditsF.reduce((s,c) => s + c.montant, 0);
+  const totalPaye = creditsF.reduce((s,c) => s + c.paye, 0);
+  const totalReste = totalCredit - totalPaye;
+  const nbPayes = creditsF.filter(c => c.montant === c.paye).length;
+  const nbImpaye = creditsF.filter(c => c.montant > c.paye).length;
+
+  document.getElementById('kpi-total-credit').textContent = fmt(totalCredit);
+  document.getElementById('kpi-encaisse').textContent = fmt(totalPaye);
+  document.getElementById('kpi-restant').textContent = fmt(totalReste);
+  document.getElementById('kpi-nb-clients').textContent = creditsF.length + ' clients';
+  document.getElementById('kpi-nb-payes').textContent = nbPayes + ' payés';
+  document.getElementById('kpi-nb-impaye').textContent = nbImpaye + ' non payés';
+
+  // Achats
+  const totalAchats = achatsF.reduce((s,a) => s + a.montant, 0);
+  const byOp = {orange:0, moov:0, mtn:0};
+  achatsF.forEach(a => {
+    if (a.fournisseur === 'Orange CI') byOp.orange += a.montant;
+    else if (a.fournisseur === 'Moov Africa') byOp.moov += a.montant;
+    else if (a.fournisseur === 'MTN CI') byOp.mtn += a.montant;
+  });
+  document.getElementById('kpi-achats').textContent = fmt(totalAchats);
+  document.getElementById('kpi-achats-sub').textContent = achatsF.length + ' achats';
+
+  // Operator breakdown
+  document.getElementById('op-orange-val').textContent = fmt(byOp.orange);
+  document.getElementById('op-moov-val').textContent = fmt(byOp.moov);
+  document.getElementById('op-mtn-val').textContent = fmt(byOp.mtn);
+  if (totalAchats) {
+    document.getElementById('op-orange-pct').textContent = Math.round(byOp.orange/totalAchats*100) + '%';
+    document.getElementById('op-moov-pct').textContent = Math.round(byOp.moov/totalAchats*100) + '%';
+    document.getElementById('op-mtn-pct').textContent = Math.round(byOp.mtn/totalAchats*100) + '%';
+  }
+
+  // Donut
+  document.getElementById('donut-total').textContent = fmtShort(totalAchats);
+  const circ = 2 * Math.PI * 46;
+  if (totalAchats) {
+    const oLen = byOp.orange/totalAchats * circ;
+    const mLen = byOp.moov/totalAchats * circ;
+    const mtLen = byOp.mtn/totalAchats * circ;
+    const oOff = 0;
+    const mOff = oLen;
+    const mtOff = oLen + mLen;
+    document.getElementById('donut-orange').setAttribute('stroke-dasharray', `${oLen} ${circ - oLen}`);
+    document.getElementById('donut-orange').setAttribute('stroke-dashoffset', '0');
+    document.getElementById('donut-moov').setAttribute('stroke-dasharray', `${mLen} ${circ - mLen}`);
+    document.getElementById('donut-moov').setAttribute('stroke-dashoffset', `-${oOff}`);
+    document.getElementById('donut-mtn').setAttribute('stroke-dasharray', `${mtLen} ${circ - mtLen}`);
+    document.getElementById('donut-mtn').setAttribute('stroke-dashoffset', `-${mOff}`);
+  }
+
+  // Commissions & frais
+  const totalCom = commissionsF.reduce((s,c) => s + c.montant, 0);
+  const totalFrais = achatsF.reduce((s,a) => s + (a.frais||0), 0);
+  document.getElementById('kpi-commissions').textContent = fmt(totalCom);
+  document.getElementById('kpi-frais').textContent = fmt(totalFrais);
+
+  // Alerts on dashboard (always on all credits, not filtered by month)
+  const alertClients = credits.filter(c => c.montant > c.paye && daysDiff(c.date) >= 2);
+  const alertsEl = document.getElementById('dash-alerts');
+  if (alertClients.length) {
+    alertsEl.innerHTML = `
+      <div class="alert-banner">
+        <div class="alert-icon">🔴</div>
+        <div class="alert-text">
+          <strong>${alertClients.length} client(s) à relancer</strong><br>
+          ${alertClients.map(c => `${c.nom} — ${fmt(c.montant - c.paye)} (${daysDiff(c.date)}j)`).join('<br>')}
+        </div>
+      </div>
+    `;
+  } else {
+    alertsEl.innerHTML = '';
+  }
+
+  // Month label handled by updateMonthLabel above
+}
+
+// =============================================
+// EXPORT EXCEL MENSUEL
+// =============================================
+function openExportModal() {
+  // Remplir le sélecteur de mois avec les mois disponibles dans les données
+  const months = new Set();
+  const now = new Date();
+  // Ajouter les 6 derniers mois par défaut
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.add(d.toISOString().slice(0,7));
+  }
+  // Ajouter les mois des données existantes
+  ['credits','suivi','achats','commissions'].forEach(key => {
+    (load(KEYS[key]) || []).forEach(r => { if (r.date) months.add(r.date.slice(0,7)); });
+  });
+  const sorted = [...months].sort((a,b) => b.localeCompare(a));
+  const sel = document.getElementById('export-month-sel');
+  sel.innerHTML = sorted.map(m => `<option value="${m}">${fmtMonthLabel(m)}</option>`).join('');
+  sel.value = currentMonthStr();
+  openModal('modal-export');
+}
+
+async function exportExcel() {
+  if (typeof XLSX === 'undefined') { showToast('⚠️ Chargement en cours, réessaie...'); return; }
+  const ym = document.getElementById('export-month-sel').value;
+  const filterM = arr => (arr||[]).filter(r => (r.date||'').startsWith(ym));
+  const credits = filterM(load(KEYS.credits));
+  const suivi   = filterM(load(KEYS.suivi));
+  const achats  = filterM(load(KEYS.achats));
+  const comms   = filterM(load(KEYS.commissions));
+
+  const wb = XLSX.utils.book_new();
+
+  // ---- Feuille Crédits ----
+  const creditsData = [['ID','Client','Téléphone','Date','Montant','Payé','Reste','Remarque']];
+  credits.forEach(c => creditsData.push([
+    c.id||'', c.nom||'', c.tel||'', c.date||'',
+    c.montant||0, c.paye||0, (c.montant||0)-(c.paye||0), c.remarque||''
+  ]));
+  const wsCredits = XLSX.utils.aoa_to_sheet(creditsData);
+  wsCredits['!cols'] = [8,20,14,12,12,12,12,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsCredits, 'Crédits');
+
+  // ---- Feuille Suivi Stock ----
+  const suiviData = [['Date','Type','Orange','Moov','MTN','TCI','Wave 1','Wave 2','Djamo','Espèces','TOTAL']];
+  suivi.forEach(s => {
+    const total = (s.orange||0)+(s.moov||0)+(s.mtn||0)+(s.tci||0)+(s.wave1||0)+(s.wave2||0)+(s.djamo||0)+(s.especes||0);
+    suiviData.push([
+      s.date, s.type==='ouv'?'Ouverture':'Fermeture',
+      s.orange||0, s.moov||0, s.mtn||0, s.tci||0,
+      s.wave1||0, s.wave2||0, s.djamo||0, s.especes||0, total
+    ]);
+  });
+  const wsSuivi = XLSX.utils.aoa_to_sheet(suiviData);
+  wsSuivi['!cols'] = [12,12,10,10,10,10,10,10,10,10,12].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsSuivi, 'Suivi Stock');
+
+  // ---- Feuille Achats ----
+  const achatsData = [['Date','Fournisseur','Montant','Mode paiement','Frais','Total TTC','Remarque']];
+  achats.forEach(a => achatsData.push([
+    a.date||'', a.fournisseur||'', a.montant||0,
+    a.mode||'', a.frais||0, (a.montant||0)+(a.frais||0), a.remarque||''
+  ]));
+  const wsAchats = XLSX.utils.aoa_to_sheet(achatsData);
+  wsAchats['!cols'] = [12,16,12,14,10,12,20].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsAchats, 'Achats UV');
+
+  // ---- Feuille Commissions ----
+  const commsData = [['Date','Opérateur','Montant','Remarque']];
+  comms.forEach(c => commsData.push([c.date||'', c.operateur||'', c.montant||0, c.remarque||'']));
+  const wsComms = XLSX.utils.aoa_to_sheet(commsData);
+  wsComms['!cols'] = [12,16,12,24].map(w=>({wch:w}));
+  XLSX.utils.book_append_sheet(wb, wsComms, 'Commissions');
+
+  // ---- Téléchargement via lien base64 ----
+  const filename = `ConnectPlus_${ym}.xlsx`;
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'base64' });
+  const href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${wbout}`;
+  closeModal('modal-export');
+  // Afficher un modal avec le lien de téléchargement
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:480px;text-align:center;">
+      <div style="font-size:40px;margin-bottom:12px;">📊</div>
+      <div style="font-weight:700;font-size:16px;margin-bottom:6px;">${filename}</div>
+      <div style="font-size:13px;color:var(--fg3);margin-bottom:20px;">Appuie sur le bouton ci-dessous et choisis "Télécharger"</div>
+      <a href="${href}" download="${filename}"
+         style="display:block;background:var(--orange);color:#fff;font-weight:700;font-size:15px;padding:14px;border-radius:12px;text-decoration:none;margin-bottom:12px;">
+        📥 Télécharger ${fmtMonthLabel(ym)}
+      </a>
+      <button onclick="this.closest('div').parentElement.remove()" style="background:none;border:none;color:var(--fg3);font-size:14px;padding:8px;cursor:pointer;">Fermer</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+function exportData() { openExportModal(); }
+
+// =============================================
+// NOTIFICATIONS
+// =============================================
+function getAlerts() {
+  const credits = load(KEYS.credits) || [];
+  const today = new Date(); today.setHours(0,0,0,0);
+  const retard = [], today_due = [];
+  credits.forEach((c, i) => {
+    const reste = c.montant - c.paye;
+    if (reste <= 0) return;
+    const jours = daysDiff(c.date);
+    if (jours >= 1) retard.push({ ...c, _idx: i, jours });
+    else if (jours === 0) today_due.push({ ...c, _idx: i });
+  });
+  return { retard, today_due };
+}
+
+function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function sendBrowserNotif(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, {
+      body,
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="16" fill="%23FF6B00"/><text x="50%" y="55%" font-size="18" text-anchor="middle" dominant-baseline="middle" fill="white">📶</text></svg>'
+    });
+  } catch(e) {}
+}
+
+function showAlerteOuverture() {
+  const { retard, today_due } = getAlerts();
+  if (retard.length === 0 && today_due.length === 0) return;
+
+  // Notification navigateur
+  const nbTotal = retard.length + today_due.length;
+  sendBrowserNotif(
+    `🔔 ConnectPlus CI — ${nbTotal} alerte${nbTotal > 1 ? 's' : ''}`,
+    retard.length > 0
+      ? `${retard.length} client${retard.length > 1 ? 's' : ''} en retard de paiement`
+      : `${today_due.length} paiement${today_due.length > 1 ? 's' : ''} attendu${today_due.length > 1 ? 's' : ''} aujourd'hui`
+  );
+
+  // Modal in-app
+  const lignesRetard = retard.map(c =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-weight:600;font-size:14px;">${c.client}</div>
+        <div style="font-size:12px;color:var(--fg3);">${c.operateur} · ${c.jours}j de retard</div>
+      </div>
+      <div style="font-weight:700;color:var(--red);font-size:14px;">${fmt(c.montant - c.paye)} F</div>
+    </div>`
+  ).join('');
+
+  const lignesAujourd = today_due.map(c =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+      <div>
+        <div style="font-weight:600;font-size:14px;">${c.client}</div>
+        <div style="font-size:12px;color:var(--fg3);">${c.operateur} · échéance aujourd'hui</div>
+      </div>
+      <div style="font-weight:700;color:var(--yellow);font-size:14px;">${fmt(c.montant - c.paye)} F</div>
+    </div>`
+  ).join('');
+
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9998;display:flex;align-items:flex-end;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:var(--surface);border-radius:var(--radius) var(--radius) 0 0;padding:20px;width:100%;max-width:480px;max-height:75vh;overflow-y:auto;box-shadow:var(--shadow-md);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:700;font-size:16px;">🔔 Alertes du jour</div>
+        <button onclick="this.closest('.alert-overlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--fg3);">✕</button>
+      </div>
+      ${today_due.length > 0 ? `
+        <div style="font-size:12px;font-weight:700;color:var(--yellow);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">⏰ Échéances aujourd'hui (${today_due.length})</div>
+        ${lignesAujourd}
+        <div style="margin-bottom:14px;"></div>
+      ` : ''}
+      ${retard.length > 0 ? `
+        <div style="font-size:12px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🚨 En retard (${retard.length})</div>
+        ${lignesRetard}
+        <div style="margin-bottom:14px;"></div>
+      ` : ''}
+      <button onclick="this.closest('.alert-overlay').remove();switchTab('credits')"
+        style="width:100%;padding:12px;background:var(--orange);color:#fff;border:none;border-radius:var(--radius-sm);font-weight:700;font-size:14px;cursor:pointer;margin-top:4px;">
+        Voir les crédits →
+      </button>
+    </div>`;
+  overlay.classList.add('alert-overlay');
+  overlay.querySelector('button[onclick*="closest"]');
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+}
+
+// =============================================
+// INIT
+// =============================================
+function init() {
+  initTheme();
+  initData();
+  // Init all month filters to current month
+  const cm = currentMonthStr();
+  selectedMonth.dashboard = cm;
+  selectedMonth.credits = cm;
+  selectedMonth.achats = cm;
+  selectedMonth.commissions = cm;
+  renderDashboard();
+  renderCredits();
+  renderSuivi();
+  renderAchats();
+  renderCommissions();
+  renderFeuil3();
+  // Hide fab on dashboard (no FAB needed)
+  document.getElementById('fab-btn').hidden = true;
+  // Demander permission notif puis afficher alertes
+  requestNotifPermission();
+  setTimeout(showAlerteOuverture, 800);
+}
+
+init();
+</script>
